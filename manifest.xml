@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RenoiseScriptingTool doc_version="0">
+  <Name>automatron</Name>
+  <Id>com.harold.Automatron</Id>
+  <Version>1</Version>
+  <ApiVersion>3</ApiVersion>
+  <Author>harold | hhausman@gmail.com</Author>
+  <Category>In Progress</Category>
+  <Description>A collection of new new new ways to enter automation data.</Description>
+  <Homepage>http://tools.renoise.com</Homepage>
+  <Icon/>
+</RenoiseScriptingTool>
