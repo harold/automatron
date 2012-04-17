@@ -18,6 +18,7 @@ local tool_id   = manifest:property("Id").value
 local offset = 0.0
 local attenuation = 1.0
 local time_mult = 1
+local input_divisor = 1
 
 -- calculated shapes
 local res = 16
@@ -95,11 +96,14 @@ local function insert( shape )
   end
   automation.points = new_points
 
-  for i in ipairs(shapes[shape].values) do
-    local point = shapes[shape].values[i]
-    local time = current_line+step*point[1]
-    local val = offset + ((1-offset)*point[2])*attenuation
-    automation:add_point_at(time,val);
+  for slice = 0, (input_divisor-1) do
+    local start = slice/input_divisor*step
+    for i in ipairs(shapes[shape].values) do
+      local point = shapes[shape].values[i]
+      local time = current_line + start + step*point[1]*(1/input_divisor)
+      local val = offset + ((1-offset)*point[2])*attenuation
+      automation:add_point_at(time,val);
+    end
   end
   local new_line = current_line+step
   while new_line > rs.selected_pattern.number_of_lines do
@@ -108,7 +112,9 @@ local function insert( shape )
   rs.selected_line_index = new_line
 end
 
-local function make_button( builder, img, shape )
+local key_map = {}
+local function make_button( builder, img, shape, key )
+  key_map[key] = shape
   return builder:bitmap{ bitmap=img, notifier=function() insert(shape) end }
 end
 
@@ -124,63 +130,58 @@ local function show_dialog()
     spacing = 4,
     vb:row { vb:text { text="Shapes and attenuation:" } },
     vb:row {
-      spacing = 10,
+      spacing = 4,
       vb:column {
         spacing = 4,
         vb:row {
           spacing = 4,
-          make_button( vb, "images/ramp-up.png", "rampUp" ),
-          make_button( vb, "images/ramp-down.png", "rampDown"),
-          make_button( vb, "images/sq-up.png", "sqUp"),
-          make_button( vb, "images/sq-down.png", "sqDown"),
+          make_button( vb, "images/ramp-up.png",   "rampUp",   "q" ),
+          make_button( vb, "images/ramp-down.png", "rampDown", "w" ),
+          make_button( vb, "images/circ-tl.png",   "circTl",   "e" ),
+          make_button( vb, "images/circ-tr.png",   "circTr",   "r" ),
+          make_button( vb, "images/sq-up.png",     "sqUp",     "t" ),
+          make_button( vb, "images/sq-down.png",   "sqDown",   "y" ),
         },
 
         vb:row {
           spacing = 4,
-          make_button( vb, "images/tri.png", "tri"),
-          make_button( vb, "images/vee.png", "vee"),
-          make_button( vb, "images/on.png", "on"),
-          make_button( vb, "images/sin-up.png", "sin"),
+          make_button( vb, "images/tri.png", "tri",        "a" ),
+          make_button( vb, "images/vee.png", "vee",        "s" ),
+          make_button( vb, "images/circ-bl.png", "circBl", "d" ),
+          make_button( vb, "images/circ-br.png", "circBr", "f" ),
+          make_button( vb, "images/sin-up.png", "sin",     "g" ),
         },
 
         vb:row {
           spacing = 4,
-          make_button( vb, "images/circ-br.png", "circBr"),
-          make_button( vb, "images/circ-tr.png", "circTr"),
-          make_button( vb, "images/circ-tl.png", "circTl"),
-          make_button( vb, "images/circ-bl.png", "circBl"),
-        },
-
-        vb:row {
-          spacing = 4,
-          make_button( vb, "images/stair-up.png", "stairUp"),
-          make_button( vb, "images/stair-down.png", "stairDown"),
-          make_button( vb, "images/cos-up.png", "cosUp"),
-          make_button( vb, "images/cos-down.png", "cosDown"),
+          make_button( vb, "images/stair-up.png", "stairUp",     "z" ),
+          make_button( vb, "images/stair-down.png", "stairDown", "x" ),
+          make_button( vb, "images/cos-up.png", "cosUp",         "c" ),
+          make_button( vb, "images/cos-down.png", "cosDown",     "v" ),
+          make_button( vb, "images/on.png", "on",                "b" ),
         },
       },
-      vb:slider {
+      vb:minislider {
         min = 0.0,
         max = 1.0,
         value = 0.0,
         width = renoise.ViewBuilder.DEFAULT_CONTROL_HEIGHT,
-        height = 204,
+        height = 152,
         notifier = function(value) offset = value end
       },
-      vb:slider {
+      vb:minislider {
         min = 0.0,
         max = 1.0,
         value = 1.0,
         width = renoise.ViewBuilder.DEFAULT_CONTROL_HEIGHT,
-        height = 204,
+        height = 152,
         notifier = function(value) attenuation = value end
       },
     },
-    vb:row { vb:text { text="Time dialation:" } },
+    vb:row { vb:text { text="Time dilation:" } },
     vb:row {
       vb:switch {
-        id = "switch",
-        width = 261,
+        width = 308,
         value = 3,
         items = {"/4", "/2", "edit step", "*2", "*4"},
         notifier = function(new_index)
@@ -192,14 +193,58 @@ local function show_dialog()
         end
       }
     },
+    vb:row { vb:text { text="Input divisor:" } },
+    vb:row {
+      vb:switch {
+        width = 308,
+        value = 1,
+        items = {"1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"},
+        notifier = function( val ) input_divisor = val end
+      }
+    },
   }
 
-  dialog = renoise.app():show_custom_dialog(tool_name, content)  
+  dialog = renoise.app():show_custom_dialog(tool_name, content, my_key_handler)
+end
+
+function my_key_handler( dialog, key )
+  local rs = renoise.song()
+  local current_line = rs.selected_line_index
+  local step = math.floor(rs.transport.edit_step * time_mult)
+  local num_lines = rs.selected_pattern.number_of_lines
+
+  if key.name == "left" or key.name == "up" then
+    if key.modifiers == "control" then step = 1 end
+    local new_line = rs.selected_line_index - step
+    while new_line < 1 do new_line = new_line + num_lines end
+    rs.selected_line_index = new_line
+  end
+
+  if key.name == "right" or key.name == "down" then
+    if key.modifiers == "control" then step = 1 end
+    local new_line = rs.selected_line_index + step
+    while new_line > num_lines do new_line = new_line - num_lines  end
+    rs.selected_line_index = new_line
+  end
+
+  if key.name == "f9" then rs.selected_line_index = 1 end
+  if key.name == "f10" then rs.selected_line_index = math.ceil(num_lines*0.25)+1 end
+  if key.name == "f11" then rs.selected_line_index = math.ceil(num_lines*0.50)+1 end
+  if key.name == "f12" then rs.selected_line_index = math.ceil(num_lines*0.75)+1 end
+
+  if key_map[key.name] then insert(key_map[key.name]) end
+
+  return key
 end
 
 renoise.tool():add_menu_entry {
   name = "Main Menu:Tools:"..tool_name.."...",
   invoke = show_dialog  
+}
+
+renoise.tool():add_menu_entry {
+ name = "Track Automation:"..tool_name.."...",
+ invoke = show_dialog
 }
 
 renoise.tool():add_keybinding {
