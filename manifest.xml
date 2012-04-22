@@ -2,7 +2,7 @@
 <RenoiseScriptingTool doc_version="0">
   <Name>automatron</Name>
   <Id>com.harold.Automatron</Id>
-  <Version>4</Version>
+  <Version>5</Version>
   <ApiVersion>3</ApiVersion>
   <Author>harold | hhausman@gmail.com</Author>
   <Category>In Progress</Category>

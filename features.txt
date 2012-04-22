@@ -1,0 +1,45 @@
+<h3>Basic usage</h3>
+<ol>
+<li>Focus the automation tab</li>
+<li>Find a nice parameter to automate (hydra input is a perennial favorite)</li>
+<li>Automation context menu > automatron... <em>or</em> Tools > automatron...</li>
+<li>Bang upon shape images or keyboard to create automation data</li>
+</ol>
+
+<h3>All Features (bold indicates new in version 5)</h3>
+<section>
+20 shapes:
+<ul>
+<li>ramps, circle quadrants, square, <strong>trapezoid</strong>, triangle, vee, sine, stair, cosine, on, <strong>off</strong></li>
+</ul>
+Attentuation:
+<ul>
+<li>Control the baseline and scale of inserted automation</li>
+</ul>
+Time dilation:
+<ul>
+<li>Inserted automation is stretched to fit a multiple of the current edit step</li>
+</ul>
+Input divisor:
+<ul>
+<li>Insert multiple copies (in time) of an automation into a single step</li>
+</ul>
+<strong>Pattern effects:</strong>
+<ul>
+<li>Fade In: Attenuates existing automation so that earlier automations are lower</li>
+<li>Fade Out: Attenuates existing automation so that later automations are lower</li>
+<li>Zero Odd: Lowers every other automation point (starting with the first)</li>
+<li>Zero Even: Lowers every other automation point (starting with the Secon)</li>
+<li>Max Odd: Maxes every other automation point (starting with the first)</li>
+<li>Max Even: Maxes every other automation point (starting with the Secon)</li>
+</ul>
+Keyboard input:
+<ul>
+<li>qwerty, asdfgh, zxcvbn, etc... Map to inserting shapes in an obvious way</li>
+<li>ctrl-`: <strong>Max edit step</strong></li>
+<li>ctrl-1, ctrl-2, etc... <strong>Set edit step from within the tool</strong></li>
+<li>ctrl-z, ctrl-y: <strong>undo/redo from within the tool</strong></li>
+<li>arrow keys: move through pattern a step at a time (ctrl: line at a time)</li>
+<li>f9, f10, f11, f12: Jump to quarter-pattern (as in regular renoise)</li>
+</ul>
+</section>

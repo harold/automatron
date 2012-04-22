@@ -22,7 +22,8 @@ local input_divisor = 1
 
 -- calculated shapes
 local res = 16
-local sin_values = {}
+local sinUp_values = {}
+local sinDown_values = {}
 local circBr_values = {}
 local circTr_values = {}
 local circTl_values = {}
@@ -31,7 +32,8 @@ local cosUp_values = {}
 local cosDown_values = {}
 for i = 0, (res-1) do
   local x = i/res
-  table.insert( sin_values, {x,math.sin(x*3.141)} )
+  table.insert( sinUp_values, {x,math.sin(x*3.141)} )
+  table.insert( sinDown_values, {x,1-math.sin(x*3.141)} )
   table.insert( circBr_values, {x,1-math.sqrt(1-x*x)} )
   table.insert( circTr_values, {x,math.sqrt(1-x*x)} )
   table.insert( circTl_values, {x,math.sqrt(2*x-x*x)} )
@@ -39,13 +41,28 @@ for i = 0, (res-1) do
   table.insert( cosUp_values, {x,1-(0.5*math.cos(x*3.14)+0.5)} )
   table.insert( cosDown_values, {x,0.5*math.cos(x*3.14)+0.5} )
 end
-table.insert( sin_values, {0.99,0} )
+table.insert( sinUp_values, {0.99,0} )
+table.insert( sinDown_values, {0.99,1} )
 table.insert( circBr_values, {0.99,1} )
 table.insert( circTr_values, {0.99,0} )
 table.insert( circTl_values, {0.99,1} )
 table.insert( circBl_values, {0.99,0} )
 table.insert( cosUp_values, {0.99,1} )
 table.insert( cosDown_values, {0.99,0} )
+
+-- TODO: Simplify calculus.
+local trapUp_values = {{0,0},{1/3,1/2}}
+local trapDown_values = {{0,1},{1/3,1/2}}
+for i = 0, (math.floor(res/(3/2))-1) do
+  local p = (2/3)*i/(math.floor(res/(3/2)))
+  local x = 1/3+p
+  local h2 = (3/2)-(9/4)*p
+  local y = (1/2)+(h2)*p+(((3/2)-h2)*p/2)
+  table.insert( trapUp_values, {x,y} )
+  table.insert( trapDown_values, {x,1-y} )
+end
+table.insert( trapUp_values, {0.99,1} )
+table.insert( trapDown_values, {0.99,0} )
 
 local shapes = {
   rampUp    = { values = {{0,0},{0.99,1}} },
@@ -55,7 +72,9 @@ local shapes = {
   tri       = { values = {{0,0},{0.5,1},{0.99,0}} },
   vee       = { values = {{0,1},{0.5,0},{0.99,1}} },
   on        = { values = {{0,1},{0.99,1}} },
-  sin       = { values = sin_values },
+  off       = { values = {{0,0},{0.99,0}} },
+  sinUp     = { values = sinUp_values },
+  sinDown   = { values = sinDown_values },
   circBr    = { values = circBr_values },
   circTr    = { values = circTr_values },
   circTl    = { values = circTl_values },
@@ -66,6 +85,8 @@ local shapes = {
                          {0.5,0.75},{0.51,0.5},{0.75,0.5},{0.76,0.25},{0.98,0.25},{0.99,0}} },
   cosUp     = { values = cosUp_values },
   cosDown   = { values = cosDown_values },
+  trapUp    = { values = trapUp_values },
+  trapDown  = { values = trapDown_values },
 }
 
 local shape_names = {}
@@ -73,18 +94,24 @@ for k, _ in pairs(shapes) do table.insert(shape_names,shapes[k].name) end
 local selected_shape = 1
 local button_size = #shapes*40
 
-local function insert( shape )
+local function get_automation()
   renoise.app().window.active_lower_frame=renoise.ApplicationWindow.LOWER_FRAME_TRACK_AUTOMATION
   local rs = renoise.song()
   local track = rs.selected_pattern_track
   local automation = track:find_automation(rs.selected_parameter)
-  local current_line = rs.selected_line_index
   if (automation == nil) then
     automation = track:create_automation(rs.selected_parameter)
   end
+  return automation
+end
 
+local function insert( shape )
+  local rs = renoise.song()
+  local current_line = rs.selected_line_index
   local step = rs.transport.edit_step
   step = math.floor( step * time_mult )
+
+  local automation = get_automation()
   local old_points = automation.points
   local new_points = {}
   for _, v in pairs(old_points) do
@@ -115,7 +142,7 @@ end
 local key_map = {}
 local function make_button( builder, img, shape, key )
   key_map[key] = shape
-  return builder:bitmap{ bitmap=img, notifier=function() insert(shape) end }
+  return builder:bitmap{ width=48, height=48, bitmap=img, notifier=function() insert(shape) end }
 end
 
 local function show_dialog()
@@ -141,15 +168,18 @@ local function show_dialog()
           make_button( vb, "images/circ-tr.png",   "circTr",   "r" ),
           make_button( vb, "images/sq-up.png",     "sqUp",     "t" ),
           make_button( vb, "images/sq-down.png",   "sqDown",   "y" ),
+          make_button( vb, "images/trap-up.png",   "trapUp",   "u" ),
+          make_button( vb, "images/trap-down.png", "trapDown", "i" ),
         },
 
         vb:row {
           spacing = 4,
-          make_button( vb, "images/tri.png", "tri",        "a" ),
-          make_button( vb, "images/vee.png", "vee",        "s" ),
-          make_button( vb, "images/circ-bl.png", "circBl", "d" ),
-          make_button( vb, "images/circ-br.png", "circBr", "f" ),
-          make_button( vb, "images/sin-up.png", "sin",     "g" ),
+          make_button( vb, "images/tri.png", "tri",          "a" ),
+          make_button( vb, "images/vee.png", "vee",          "s" ),
+          make_button( vb, "images/circ-bl.png", "circBl",   "d" ),
+          make_button( vb, "images/circ-br.png", "circBr",   "f" ),
+          make_button( vb, "images/sin-up.png", "sinUp",     "g" ),
+          make_button( vb, "images/sin-down.png", "sinDown", "h" ),
         },
 
         vb:row {
@@ -159,6 +189,7 @@ local function show_dialog()
           make_button( vb, "images/cos-up.png", "cosUp",         "c" ),
           make_button( vb, "images/cos-down.png", "cosDown",     "v" ),
           make_button( vb, "images/on.png", "on",                "b" ),
+          make_button( vb, "images/off.png", "off",              "n" ),
         },
       },
       vb:minislider {
@@ -202,9 +233,78 @@ local function show_dialog()
         notifier = function( val ) input_divisor = val end
       }
     },
+    vb:row { vb:text { text="Pattern effects:" } },
+    vb:row {
+      vb:button {
+        text = "Fade In",
+        notifier = function()
+          local num_lines = renoise.song().selected_pattern.number_of_lines
+          process_points( function( index, point )
+            point.value = (point.time-1)/num_lines * point.value
+            return point
+          end )
+        end
+      },
+      vb:button {
+        text = "Fade Out",
+        notifier = function()
+          local num_lines = renoise.song().selected_pattern.number_of_lines
+          process_points( function( index, point )
+            point.value = (1-(point.time-1)/num_lines) * point.value
+            return point
+          end )
+        end
+      },
+      vb:button {
+        text = "Zero Odd",
+        notifier = function()
+          process_points( function( index, point )
+            if index % 2 == 1 then point.value = 0 end
+            return point
+          end )
+        end
+      },
+      vb:button {
+        text = "Zero Even",
+        notifier = function()
+          process_points( function( index, point )
+            if index % 2 == 0 then point.value = 0 end
+            return point
+          end )
+        end
+      },
+      vb:button {
+        text = "Max Odd",
+        notifier = function()
+          process_points( function( index, point )
+            if index % 2 == 1 then point.value = 1 end
+            return point
+          end )
+        end
+      },
+      vb:button {
+        text = "Max Even",
+        notifier = function()
+          process_points( function( index, point )
+            if index % 2 == 0 then point.value = 1 end
+            return point
+          end )
+        end
+      },
+    },
   }
 
   dialog = renoise.app():show_custom_dialog(tool_name, content, my_key_handler)
+end
+
+function process_points( f )
+  local automation = get_automation()
+  local old_points = automation.points
+  local new_points = {}
+  for i, v in pairs(old_points) do
+    table.insert( new_points, f(i,v) )
+  end
+  automation.points = new_points
 end
 
 function my_key_handler( dialog, key )
@@ -213,6 +313,7 @@ function my_key_handler( dialog, key )
   local step = math.floor(rs.transport.edit_step * time_mult)
   local num_lines = rs.selected_pattern.number_of_lines
 
+  -- Pattern navigation emulation
   if key.name == "left" or key.name == "up" then
     if key.modifiers == "control" then step = 1 end
     local new_line = rs.selected_line_index - step
@@ -227,12 +328,44 @@ function my_key_handler( dialog, key )
     rs.selected_line_index = new_line
   end
 
+  -- Quadrant jump emulation
   if key.name == "f9" then rs.selected_line_index = 1 end
   if key.name == "f10" then rs.selected_line_index = math.ceil(num_lines*0.25)+1 end
   if key.name == "f11" then rs.selected_line_index = math.ceil(num_lines*0.50)+1 end
   if key.name == "f12" then rs.selected_line_index = math.ceil(num_lines*0.75)+1 end
 
-  if key_map[key.name] then insert(key_map[key.name]) end
+  -- Edit step emulation
+  local rst = rs.transport
+  if key.modifiers == "control" then
+    if key.name == "`" then
+      if num_lines > 64 then
+        rst.edit_step = 64
+      else
+        rst.edit_step = num_lines
+      end
+    end
+    if key.name == "1" then rst.edit_step = 1 end
+    if key.name == "2" then rst.edit_step = 2 end
+    if key.name == "3" then rst.edit_step = 3 end
+    if key.name == "4" then rst.edit_step = 4 end
+    if key.name == "5" then rst.edit_step = 5 end
+    if key.name == "6" then rst.edit_step = 6 end
+    if key.name == "7" then rst.edit_step = 7 end
+    if key.name == "8" then rst.edit_step = 8 end
+    if key.name == "9" then rst.edit_step = 9 end
+    if key.name == "0" then rst.edit_step = 0 end
+    if key.name == "-" then
+      if rst.edit_step > 0 then rst.edit_step = rst.edit_step - 1 end
+    end
+    if key.name == "=" then
+      if rst.edit_step < 64 then rst.edit_step = rst.edit_step + 1 end
+    end
+
+    if key.name == "z" then renoise.song():undo() end
+    if key.name == "y" then renoise.song():redo() end
+  end
+
+  if key.modifiers == "" and key_map[key.name] then insert(key_map[key.name]) end
 
   return key
 end
