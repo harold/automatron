@@ -7,17 +7,20 @@ class "RenoiseScriptingTool" (renoise.Document.DocumentNode)
 function RenoiseScriptingTool:__init()    
   renoise.Document.DocumentNode.__init(self) 
   self:add_property("Name", "Untitled Tool")
-  self:add_property("Id", "Unknown Id")
+  self:add_property("Version", "Untitled Tool")
 end
 
 local manifest  = RenoiseScriptingTool()
 local ok,err    = manifest:load_from("manifest.xml")
 local tool_name = manifest:property("Name").value
-local tool_id   = manifest:property("Id").value
+local tool_ver  = manifest:property("Version").value
+
+local automatron_doc = renoise.Document.create("AutomatronDocument") {
+  step_length = 4
+}
 
 local offset = 0.0
 local attenuation = 1.0
-local time_mult = 1
 local input_divisor = 1
 
 -- calculated shapes
@@ -91,11 +94,10 @@ local shapes = {
 
 local shape_names = {}
 for k, _ in pairs(shapes) do table.insert(shape_names,shapes[k].name) end
-local selected_shape = 1
-local button_size = #shapes*40
 
 local function get_automation()
-  renoise.app().window.active_lower_frame=renoise.ApplicationWindow.LOWER_FRAME_TRACK_AUTOMATION
+  local ra = renoise.app()
+  ra.window.active_lower_frame=renoise.ApplicationWindow.LOWER_FRAME_TRACK_AUTOMATION
   local rs = renoise.song()
   local track = rs.selected_pattern_track
   local automation = track:find_automation(rs.selected_parameter)
@@ -107,13 +109,17 @@ end
 
 local function insert( shape )
   local rs = renoise.song()
+  if automatron_doc.step_length.value > rs.selected_pattern.number_of_lines then
+    automatron_doc.step_length.value = rs.selected_pattern.number_of_lines
+  end
+
   local current_line = rs.selected_line_index
-  local step = rs.transport.edit_step
-  step = math.floor( step * time_mult )
+  local step = automatron_doc.step_length.value
 
   local automation = get_automation()
   local old_points = automation.points
   local new_points = {}
+  -- TODO: This grows linearly in the number of existing points. Dumb...
   for _, v in pairs(old_points) do
     if v.time >= current_line and v.time < current_line+step then
       -- nop (don't copy)
@@ -150,6 +156,8 @@ local function show_dialog()
     dialog:show()
     return
   end
+
+  automatron_doc.step_length.value = renoise.song().transport.edit_step
 
   vb = renoise.ViewBuilder()
   local content = vb:column {
@@ -209,92 +217,106 @@ local function show_dialog()
         notifier = function(value) attenuation = value end
       },
     },
-    vb:row { vb:text { text="Time dilation:" } },
     vb:row {
-      vb:switch {
-        width = 308,
-        value = 3,
-        items = {"/4", "/2", "edit step", "*2", "*4"},
-        notifier = function(new_index)
-          if new_index == 1 then time_mult = 0.25 end
-          if new_index == 2 then time_mult = 0.50 end
-          if new_index == 3 then time_mult = 1 end
-          if new_index == 4 then time_mult = 2 end
-          if new_index == 5 then time_mult = 4 end
-        end
-      }
-    },
-    vb:row { vb:text { text="Input divisor:" } },
-    vb:row {
-      vb:switch {
-        width = 308,
-        value = 1,
-        items = {"1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"},
-        notifier = function( val ) input_divisor = val end
-      }
-    },
-    vb:row { vb:text { text="Pattern effects:" } },
-    vb:row {
-      vb:button {
-        text = "Fade In",
-        notifier = function()
-          local num_lines = renoise.song().selected_pattern.number_of_lines
-          process_points( function( index, point )
-            point.value = (point.time-1)/num_lines * point.value
-            return point
-          end )
-        end
+      vb:column {
+        spacing = 2,
+        vb:text { text="Step length:" },
+        vb:text { text="Input divisor:" },
+        vb:text { text="Pattern effects:" },
       },
-      vb:button {
-        text = "Fade Out",
-        notifier = function()
-          local num_lines = renoise.song().selected_pattern.number_of_lines
-          process_points( function( index, point )
-            point.value = (1-(point.time-1)/num_lines) * point.value
-            return point
-          end )
-        end
-      },
-      vb:button {
-        text = "Zero Odd",
-        notifier = function()
-          process_points( function( index, point )
-            if index % 2 == 1 then point.value = 0 end
-            return point
-          end )
-        end
-      },
-      vb:button {
-        text = "Zero Even",
-        notifier = function()
-          process_points( function( index, point )
-            if index % 2 == 0 then point.value = 0 end
-            return point
-          end )
-        end
-      },
-      vb:button {
-        text = "Max Odd",
-        notifier = function()
-          process_points( function( index, point )
-            if index % 2 == 1 then point.value = 1 end
-            return point
-          end )
-        end
-      },
-      vb:button {
-        text = "Max Even",
-        notifier = function()
-          process_points( function( index, point )
-            if index % 2 == 0 then point.value = 1 end
-            return point
-          end )
-        end
+      vb:column {
+        spacing = 2,
+        vb:row {
+          vb:valuebox {
+            bind = automatron_doc.step_length,
+            max = renoise.song().selected_pattern.number_of_lines
+          },
+          vb:button {
+            text = "halve",
+            notifier = function()
+              local current = automatron_doc.step_length
+              automatron_doc.step_length.value = math.floor( current / 2 )
+            end
+          },
+          vb:button {
+            text = "double",
+            notifier = function()
+              local current = automatron_doc.step_length
+              automatron_doc.step_length.value = math.floor( current * 2 )
+            end
+          },
+        },
+        vb:row {
+          vb:switch {
+            width = 341,
+            value = 1,
+            items = {"1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"},
+            notifier = function( val ) input_divisor = val end
+          }
+        },
+        vb:row {
+          vb:button {
+            text = "Fade In",
+            notifier = function()
+              local num_lines = renoise.song().selected_pattern.number_of_lines
+              process_points( function( index, point )
+                point.value = (point.time-1)/num_lines * point.value
+                return point
+              end )
+            end
+          },
+          vb:button {
+            text = "Fade Out",
+            notifier = function()
+              local num_lines = renoise.song().selected_pattern.number_of_lines
+              process_points( function( index, point )
+                point.value = (1-(point.time-1)/num_lines) * point.value
+                return point
+              end )
+            end
+          },
+          vb:button {
+            text = "Zero Odd",
+            notifier = function()
+              process_points( function( index, point )
+                if index % 2 == 1 then point.value = 0 end
+                return point
+              end )
+            end
+          },
+          vb:button {
+            text = "Zero Even",
+            notifier = function()
+              process_points( function( index, point )
+                if index % 2 == 0 then point.value = 0 end
+                return point
+              end )
+            end
+          },
+          vb:button {
+            text = "Max Odd",
+            notifier = function()
+              process_points( function( index, point )
+                if index % 2 == 1 then point.value = 1 end
+                return point
+              end )
+            end
+          },
+          vb:button {
+            text = "Max Even",
+            notifier = function()
+              process_points( function( index, point )
+                if index % 2 == 0 then point.value = 1 end
+                return point
+              end )
+            end
+          },
+        },
       },
     },
   }
 
-  dialog = renoise.app():show_custom_dialog(tool_name, content, my_key_handler)
+  dialog = renoise.app():show_custom_dialog(tool_name.." v"..tool_ver, content, my_key_handler)
 end
 
 function process_points( f )
@@ -302,15 +324,19 @@ function process_points( f )
   local old_points = automation.points
   local new_points = {}
   for i, v in pairs(old_points) do
-    table.insert( new_points, f(i,v) )
+    local point = f(i,v) -- Here's where the bread is baked
+    if point.value <= 0 then point.value = 0 end
+    if point.value >= 1 then point.value = 1 end
+    table.insert( new_points, point )
   end
   automation.points = new_points
 end
 
 function my_key_handler( dialog, key )
+  local handled = false
   local rs = renoise.song()
   local current_line = rs.selected_line_index
-  local step = math.floor(rs.transport.edit_step * time_mult)
+  local step = automatron_doc.step_length.value
   local num_lines = rs.selected_pattern.number_of_lines
 
   -- Pattern navigation emulation
@@ -319,6 +345,7 @@ function my_key_handler( dialog, key )
     local new_line = rs.selected_line_index - step
     while new_line < 1 do new_line = new_line + num_lines end
     rs.selected_line_index = new_line
+    handled = true
   end
 
   if key.name == "right" or key.name == "down" then
@@ -326,6 +353,7 @@ function my_key_handler( dialog, key )
     local new_line = rs.selected_line_index + step
     while new_line > num_lines do new_line = new_line - num_lines  end
     rs.selected_line_index = new_line
+    handled = true
   end
 
   -- Quadrant jump emulation
@@ -338,36 +366,41 @@ function my_key_handler( dialog, key )
   local rst = rs.transport
   if key.modifiers == "control" then
     if key.name == "`" then
-      if num_lines > 64 then
-        rst.edit_step = 64
-      else
-        rst.edit_step = num_lines
-      end
+      automatron_doc.step_length.value = num_lines
+      handled = true
     end
-    if key.name == "1" then rst.edit_step = 1 end
-    if key.name == "2" then rst.edit_step = 2 end
-    if key.name == "3" then rst.edit_step = 3 end
-    if key.name == "4" then rst.edit_step = 4 end
-    if key.name == "5" then rst.edit_step = 5 end
-    if key.name == "6" then rst.edit_step = 6 end
-    if key.name == "7" then rst.edit_step = 7 end
-    if key.name == "8" then rst.edit_step = 8 end
-    if key.name == "9" then rst.edit_step = 9 end
-    if key.name == "0" then rst.edit_step = 0 end
+    if key.name == "1" then automatron_doc.step_length.value = 1; handled = true end
+    if key.name == "2" then automatron_doc.step_length.value = 2; handled = true end
+    if key.name == "3" then automatron_doc.step_length.value = 3; handled = true end
+    if key.name == "4" then automatron_doc.step_length.value = 4; handled = true end
+    if key.name == "5" then automatron_doc.step_length.value = 5; handled = true end
+    if key.name == "6" then automatron_doc.step_length.value = 6; handled = true end
+    if key.name == "7" then automatron_doc.step_length.value = 7; handled = true end
+    if key.name == "8" then automatron_doc.step_length.value = 8; handled = true end
+    if key.name == "9" then automatron_doc.step_length.value = 9; handled = true end
+    if key.name == "0" then automatron_doc.step_length.value = 0; handled = true end
     if key.name == "-" then
-      if rst.edit_step > 0 then rst.edit_step = rst.edit_step - 1 end
+      if automatron_doc.step_length.value > 0 then
+        automatron_doc.step_length.value = automatron_doc.step_length.value - 1
+      end
+      handled = true
     end
     if key.name == "=" then
-      if rst.edit_step < 64 then rst.edit_step = rst.edit_step + 1 end
+      if automatron_doc.step_length.value < num_lines then
+        automatron_doc.step_length.value = automatron_doc.step_length.value + 1
+      end
+      handled = true
     end
 
-    if key.name == "z" then renoise.song():undo() end
-    if key.name == "y" then renoise.song():redo() end
+    if key.name == "z" then renoise.song():undo(); handled = true end
+    if key.name == "y" then renoise.song():redo(); handled = true end
   end
 
-  if key.modifiers == "" and key_map[key.name] then insert(key_map[key.name]) end
+  if key.modifiers == "" and key_map[key.name] then
+    insert(key_map[key.name]); handled = true
+  end
 
-  return key
+  if not handled then return key end
 end
 
 renoise.tool():add_menu_entry {
