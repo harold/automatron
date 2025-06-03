@@ -2,8 +2,8 @@
 <RenoiseScriptingTool doc_version="0">
   <Name>automatron</Name>
   <Id>com.harold.Automatron</Id>
-  <Version>6</Version>
-  <ApiVersion>3</ApiVersion>
+  <Version>6.1</Version>
+  <ApiVersion>6.1</ApiVersion>
   <Author>harold | hhausman@gmail.com</Author>
   <Category>In Progress</Category>
   <Description>A collection of new new new ways to enter automation data.</Description>
