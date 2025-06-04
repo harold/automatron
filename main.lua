@@ -160,7 +160,9 @@ local function show_dialog()
   automatron_doc.step_length.value = renoise.song().transport.edit_step
 
   vb = renoise.ViewBuilder()
-  local content = vb:column {
+   local offset_value_box = vb:text{ text = "OFF\n0.00" }
+   local attenuation_value_box = vb:text{ text = "ATN\n1.00" }
+   local content = vb:column {
     margin = 10,
     spacing = 4,
     vb:row { vb:text { text="Shapes and attenuation:" } },
@@ -200,21 +202,35 @@ local function show_dialog()
           make_button( vb, "images/off.png", "off",              "n" ),
         },
       },
-      vb:minislider {
-        min = 0.0,
-        max = 1.0,
-        value = 0.0,
-        width = renoise.ViewBuilder.DEFAULT_CONTROL_HEIGHT,
-        height = 152,
-        notifier = function(value) offset = value end
-      },
-      vb:minislider {
-        min = 0.0,
-        max = 1.0,
-        value = 1.0,
-        width = renoise.ViewBuilder.DEFAULT_CONTROL_HEIGHT,
-        height = 152,
-        notifier = function(value) attenuation = value end
+      vb:column{vb:row {spacing = 4, offset_value_box, attenuation_value_box},
+      vb:vertical_aligner{
+          mode ="center",
+          vb:row {
+            spacing=5,margin=5,
+            vb:minislider {
+          min = 0.0,
+          max = 1.0,
+          value = 0.0,
+          width = renoise.ViewBuilder.DEFAULT_CONTROL_HEIGHT,
+          height = 122,
+          notifier = function(value) 
+            offset = value
+            offset_value_box.text = string.format("OFF\n%.2f", value)
+          end
+            },
+                vb:minislider {
+          min = 0.0,
+          max = 1.0,
+          value = 1.0,
+          width = renoise.ViewBuilder.DEFAULT_CONTROL_HEIGHT,
+          height = 122,
+          notifier = function(value) 
+            attenuation = value
+            attenuation_value_box.text = string.format("ATN\n%.2f", value)
+          end
+        },
+        },
+        },
       },
     },
     vb:row {
@@ -248,7 +264,7 @@ local function show_dialog()
         },
         vb:row {
           vb:switch {
-            width = 341,
+            width = 379,
             value = 1,
             items = {"1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"},
             notifier = function( val ) input_divisor = val end
@@ -257,6 +273,7 @@ local function show_dialog()
         vb:row {
           vb:button {
             text = "Fade In",
+            width = "10%",
             notifier = function()
               local num_lines = renoise.song().selected_pattern.number_of_lines
               process_points( function( index, point )
@@ -267,6 +284,7 @@ local function show_dialog()
           },
           vb:button {
             text = "Fade Out",
+            width = "10%",
             notifier = function()
               local num_lines = renoise.song().selected_pattern.number_of_lines
               process_points( function( index, point )
@@ -277,6 +295,7 @@ local function show_dialog()
           },
           vb:button {
             text = "Zero Odd",
+            width = "10%",
             notifier = function()
               process_points( function( index, point )
                 if index % 2 == 1 then point.value = 0 end
@@ -286,6 +305,7 @@ local function show_dialog()
           },
           vb:button {
             text = "Zero Even",
+            width = "10%",
             notifier = function()
               process_points( function( index, point )
                 if index % 2 == 0 then point.value = 0 end
@@ -295,6 +315,7 @@ local function show_dialog()
           },
           vb:button {
             text = "Max Odd",
+            width = "10%",
             notifier = function()
               process_points( function( index, point )
                 if index % 2 == 1 then point.value = 1 end
@@ -304,11 +325,37 @@ local function show_dialog()
           },
           vb:button {
             text = "Max Even",
+            width = "10%",
             notifier = function()
               process_points( function( index, point )
                 if index % 2 == 0 then point.value = 1 end
                 return point
               end )
+            end
+          },
+        vb:button {
+            color = {161,38,45},
+            width = "10%",
+            text = "Clear",
+            notifier = function ()
+              local song = renoise.song()
+              local param = song.selected_parameter
+              if not param then
+                renoise.app():show_error("No parameter selected.")
+                return
+              end
+
+              local pattern_index = song.selected_pattern_index
+              local track_index = song.selected_track_index
+
+              -- Select track specific pattern
+              local pattern_track = song.patterns[pattern_index]:track(track_index)
+
+              -- Delete selected automation
+              local automation = get_automation()
+              if automation then
+                pattern_track:delete_automation(param)
+              end
             end
           },
         },
